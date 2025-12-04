@@ -31,12 +31,7 @@ MemoryChat is a nostalgia-driven chat-based web-app where you can **store your m
 
 ---
 
-## 🎥 Animated Preview  
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Mayank-cyber-cell/MemoryChat--Talk-With-Your-Memories-/main/assets/demo.gif" width="800">
-</p>
 
----
 
 ## ⭐ Show Some Love  
 <p align="center">
