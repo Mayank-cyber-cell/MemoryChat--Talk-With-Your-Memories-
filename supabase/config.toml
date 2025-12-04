@@ -1,0 +1,7 @@
+project_id = "ueczuismogirfqwgspuy"
+
+[functions.parse-chat]
+verify_jwt = true
+
+[functions.chat-response]
+verify_jwt = true
