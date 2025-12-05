@@ -39,6 +39,5 @@ MemoryChat is a nostalgia-driven chat-based web-app where you can **store your m
     <img src="https://img.shields.io/github/stars/Mayank-cyber-cell/MemoryChat--Talk-With-Your-Memories-?style=for-the-badge&color=yellow" />
   </a>
 </p>
-
 ---
 
