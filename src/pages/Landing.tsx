@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { LogOut, BarChart3 } from "lucide-react";
+import { LogOut, BarChart3, User, Settings as SettingsIcon, Upload, History, Search } from "lucide-react";
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -15,27 +15,96 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen gradient-bg flex items-center justify-center px-4 relative">
-      {/* Top right controls */}
-      <div className="fixed top-6 right-6 z-50 flex items-center gap-3">
-        <Button
-          onClick={handleSignOut}
-          variant="outline"
-          size="sm"
-          className="gap-2 glass-effect border-border/50 hover:border-destructive/50 hover:text-destructive"
-        >
-          <LogOut className="h-4 w-4" />
-          Sign Out
-        </Button>
-        <ThemeToggle />
-      </div>
-
+    <div className="min-h-screen gradient-bg flex flex-col relative">
+      {/* Top Navigation Bar */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-        className="text-center max-w-4xl"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-border/30 backdrop-blur-lg"
       >
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            <h2 className="text-xl font-heading font-bold gradient-primary bg-clip-text text-transparent">
+              MemoryChat
+            </h2>
+            <nav className="hidden md:flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/upload")}
+                className="gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Upload
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/history")}
+                className="gap-2"
+              >
+                <History className="h-4 w-4" />
+                History
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/stats")}
+                className="gap-2"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Analytics
+              </Button>
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-border"
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden sm:inline text-xs">Search...</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/profile")}
+              className="relative"
+            >
+              <User className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/settings")}
+            >
+              <SettingsIcon className="h-4 w-4" />
+            </Button>
+            <ThemeToggle />
+            <Button
+              onClick={handleSignOut}
+              variant="outline"
+              size="sm"
+              className="gap-2 border-border/50 hover:border-destructive/50 hover:text-destructive"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </Button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Hero Section */}
+      <div className="flex-1 flex items-center justify-center px-4 pt-20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="text-center max-w-4xl"
+        >
         <motion.h1
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -83,6 +152,7 @@ const Landing = () => {
           </Button>
         </motion.div>
       </motion.div>
+      </div>
     </div>
   );
 };
