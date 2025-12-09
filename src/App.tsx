@@ -15,6 +15,8 @@ import Chat from "./pages/Chat";
 import Memory from "./pages/Memory";
 import History from "./pages/History";
 import Stats from "./pages/Stats";
+import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -63,6 +65,8 @@ const App = () => {
               <Route path="/memory" element={<ProtectedRoute session={session}><Memory /></ProtectedRoute>} />
               <Route path="/history" element={<ProtectedRoute session={session}><History /></ProtectedRoute>} />
               <Route path="/stats" element={<ProtectedRoute session={session}><Stats /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute session={session}><Settings /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute session={session}><Profile /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
