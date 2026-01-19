@@ -15,7 +15,7 @@
 ---
 
 ## 🌟 About MemoryChat
-MemoryChat is a nostalgia-driven chat-based web-app where you can **store your memories** and **talk to them anytime** — a digital time capsule that replies to you.
+MemoryChat is a nostalgia driven chat-based web-app where you can **store your memories** and **talk to them anytime** — a digital time capsule that replies to you.
 
 ---
 
