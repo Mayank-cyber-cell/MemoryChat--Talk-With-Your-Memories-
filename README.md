@@ -9,7 +9,7 @@
   <img src="https://streak-stats.demolab.com?user=Mayank-cyber-cell&theme=dark&hide_border=true" />
   <img src="https://readme-typing-svg.demolab.com?font=Roboto&size=20&duration=3000&color=00F7FF&center=true&vCenter=true&width=500&lines=Made+with+❤+by+Mayank;MemoryChat+is+Live;Explore+Your+Old+Memories " />
 
-</p>
+</p> 
 
 ---
 
