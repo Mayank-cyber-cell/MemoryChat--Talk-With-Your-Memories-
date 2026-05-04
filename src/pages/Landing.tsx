@@ -1,18 +1,11 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { LogOut, BarChart3, User, Settings as SettingsIcon, Upload, History, Search } from "lucide-react";
+import { BarChart3, User, Settings as SettingsIcon, Upload, History, Search } from "lucide-react";
 
 const Landing = () => {
   const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    toast.success("Signed out successfully");
-  };
 
   return (
     <div className="min-h-screen gradient-bg flex flex-col relative">
@@ -84,15 +77,6 @@ const Landing = () => {
               <SettingsIcon className="h-4 w-4" />
             </Button>
             <ThemeToggle />
-            <Button
-              onClick={handleSignOut}
-              variant="outline"
-              size="sm"
-              className="gap-2 border-border/50 hover:border-destructive/50 hover:text-destructive"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </Button>
           </div>
         </div>
       </motion.div>

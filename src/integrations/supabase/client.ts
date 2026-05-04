@@ -5,13 +5,71 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+const createUnavailableQueryBuilder = (message: string) => {
+  const builder: any = {
+    select: () => builder,
+    insert: () => builder,
+    update: () => builder,
+    delete: () => builder,
+    upsert: () => builder,
+    eq: () => builder,
+    neq: () => builder,
+    gt: () => builder,
+    gte: () => builder,
+    lt: () => builder,
+    lte: () => builder,
+    like: () => builder,
+    ilike: () => builder,
+    in: () => builder,
+    contains: () => builder,
+    order: () => builder,
+    limit: () => builder,
+    single: () => Promise.resolve({ data: null, error: new Error(message) }),
+    maybeSingle: () => Promise.resolve({ data: null, error: new Error(message) }),
+    then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+      Promise.resolve({ data: null, error: new Error(message) }).then(resolve, reject),
+  };
+
+  return builder;
+};
+
+const createUnavailableSupabaseClient = () => {
+  const message = 'Supabase is unavailable in this environment.';
+  const queryBuilder = createUnavailableQueryBuilder(message);
+
+  return {
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+      onAuthStateChange: () => ({
+        data: {
+          subscription: {
+            unsubscribe: () => undefined,
+          },
+        },
+      }),
+      signInWithPassword: () => Promise.resolve({ data: null, error: new Error(message) }),
+      signUp: () => Promise.resolve({ data: null, error: new Error(message) }),
+      signOut: () => Promise.resolve({ error: null }),
+    },
+    functions: {
+      invoke: () => Promise.resolve({ data: null, error: new Error(message) }),
+    },
+    from: () => queryBuilder,
+  };
+};
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-  }
-});
+export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY
+  ? createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storage: localStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      }
+    })
+  : createUnavailableSupabaseClient();

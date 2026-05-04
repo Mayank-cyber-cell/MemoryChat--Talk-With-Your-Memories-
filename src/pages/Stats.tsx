@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
 import { Tables } from "@/integrations/supabase/types";
 import { ArrowLeft, MessageSquare, Users, Calendar, TrendingUp, BarChart3 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -36,6 +36,11 @@ const Stats = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
+      return;
+    }
+
     loadData();
   }, []);
 
@@ -139,6 +144,32 @@ const Stats = () => {
     return (
       <div className="min-h-screen chat-gradient-bg flex items-center justify-center">
         <div className="animate-pulse text-foreground">Loading statistics...</div>
+      </div>
+    );
+  }
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="min-h-screen chat-gradient-bg px-4 py-8 relative overflow-hidden">
+        <div className="fixed top-6 right-6 z-50">
+          <ThemeToggle />
+        </div>
+
+        <div className="max-w-3xl mx-auto relative z-10 flex min-h-[80vh] items-center justify-center">
+          <Card className="glass-effect border-border/50 p-8 text-center space-y-4">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <BarChart3 className="h-6 w-6 text-primary" />
+            </div>
+            <h1 className="text-2xl font-heading font-bold text-foreground">Stats need Supabase</h1>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              Add <span className="font-medium text-foreground">VITE_SUPABASE_URL</span> and{' '}
+              <span className="font-medium text-foreground">VITE_SUPABASE_ANON_KEY</span> to enable analytics, history, and chat data.
+            </p>
+            <Button onClick={() => navigate("/")} className="gradient-primary font-semibold">
+              Back to Home
+            </Button>
+          </Card>
+        </div>
       </div>
     );
   }
