@@ -2,7 +2,7 @@
 <h1 align="center">     
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=34&duration=2500&pause=800&color=6FF7FF&center=true&vCenter=true&vCenter=true&width=900&lines=MemoryChat+-+Talk+With+Your+Memories;Chat+with+your+past+like+never+before!;Store+.+Relive+.+Experience" />
 </h1>  
-
+ 
 <p align="center">
   <img src="https://komarev.com/ghpvc/?username=Mayank-cyber-cell&style=flat-square&color=blue" />
   <img src="https://streak-stats.demolab.com?user=Mayank-cyber-cell&theme=dark&hide_border=true" />
