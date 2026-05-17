@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { isSupabaseConfigured, supabase } from "@/integrations/supabase/client";
-import { Tables } from "@/integrations/supabase/types";
+import { apiClient } from "@/lib/api-client";
 import { ArrowLeft, MessageSquare, Users, Calendar, TrendingUp, BarChart3 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
@@ -24,8 +23,23 @@ import {
 } from "recharts";
 import { format, subDays, startOfDay, eachDayOfInterval } from "date-fns";
 
-type ChatSession = Tables<"chat_sessions">;
-type ParsedMessage = Tables<"parsed_messages">;
+interface ChatSession {
+  id: string;
+  session_name: string;
+  chat_platform?: string;
+  total_messages: number;
+  analysis_complete?: boolean;
+  created_at: string;
+}
+
+interface ParsedMessage {
+  id: string;
+  sender_name: string;
+  message_text: string;
+  timestamp: string | null;
+  message_order: number;
+  created_at: string;
+}
 
 const COLORS = ["hsl(280, 79%, 61%)", "hsl(330, 81%, 60%)", "hsl(200, 80%, 55%)", "hsl(150, 70%, 50%)", "hsl(45, 90%, 55%)"];
 
@@ -36,23 +50,25 @@ const Stats = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setIsLoading(false);
-      return;
-    }
-
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
-      const [sessionsResult, messagesResult] = await Promise.all([
-        supabase.from('chat_sessions').select('*').order('created_at', { ascending: false }),
-        supabase.from('parsed_messages').select('*').order('created_at', { ascending: false }),
-      ]);
+      const sessionsResult = await apiClient.getSessions();
+      if (sessionsResult.data) {
+        setSessions(sessionsResult.data);
 
-      if (sessionsResult.data) setSessions(sessionsResult.data);
-      if (messagesResult.data) setMessages(messagesResult.data);
+        // Load messages for each session to build stats
+        const allMessages: ParsedMessage[] = [];
+        for (const session of sessionsResult.data) {
+          const messagesResult = await apiClient.getMessages(session.id);
+          if (messagesResult.data) {
+            allMessages.push(...messagesResult.data);
+          }
+        }
+        setMessages(allMessages);
+      }
     } catch (error) {
       console.error('Error loading stats data:', error);
     } finally {
@@ -144,32 +160,6 @@ const Stats = () => {
     return (
       <div className="min-h-screen chat-gradient-bg flex items-center justify-center">
         <div className="animate-pulse text-foreground">Loading statistics...</div>
-      </div>
-    );
-  }
-
-  if (!isSupabaseConfigured) {
-    return (
-      <div className="min-h-screen chat-gradient-bg px-4 py-8 relative overflow-hidden">
-        <div className="fixed top-6 right-6 z-50">
-          <ThemeToggle />
-        </div>
-
-        <div className="max-w-3xl mx-auto relative z-10 flex min-h-[80vh] items-center justify-center">
-          <Card className="glass-effect border-border/50 p-8 text-center space-y-4">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <BarChart3 className="h-6 w-6 text-primary" />
-            </div>
-            <h1 className="text-2xl font-heading font-bold text-foreground">Stats need Supabase</h1>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Add <span className="font-medium text-foreground">VITE_SUPABASE_URL</span> and{' '}
-              <span className="font-medium text-foreground">VITE_SUPABASE_ANON_KEY</span> to enable analytics, history, and chat data.
-            </p>
-            <Button onClick={() => navigate("/")} className="gradient-primary font-semibold">
-              Back to Home
-            </Button>
-          </Card>
-        </div>
       </div>
     );
   }

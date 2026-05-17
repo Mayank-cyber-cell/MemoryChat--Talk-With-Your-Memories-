@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ArrowLeft, User, Bell, Save, Zap } from "lucide-react";
@@ -36,23 +36,18 @@ const Settings = () => {
 
   const loadPreferences = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const token = apiClient.getAuthToken();
+      if (!token) return;
 
-      const { data, error } = await supabase
-        .from('user_preferences')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') throw error;
-
-      if (data) {
+      // Load preferences from localStorage
+      const stored = localStorage.getItem('user_preferences');
+      if (stored) {
+        const parsed = JSON.parse(stored);
         setPreferences({
-          display_name: data.display_name || "",
-          notifications_enabled: data.notifications_enabled ?? true,
-          auto_save_enabled: data.auto_save_enabled ?? true,
-          ai_response_speed: data.ai_response_speed || "balanced",
+          display_name: parsed.display_name || "",
+          notifications_enabled: parsed.notifications_enabled ?? true,
+          auto_save_enabled: parsed.auto_save_enabled ?? true,
+          ai_response_speed: parsed.ai_response_speed || "balanced",
         });
       }
     } catch (error) {
@@ -65,18 +60,16 @@ const Settings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const token = apiClient.getAuthToken();
+      if (!token) throw new Error('Not authenticated');
 
-      const { error } = await supabase
-        .from('user_preferences')
-        .upsert({
-          user_id: user.id,
-          ...preferences,
-          updated_at: new Date().toISOString(),
-        });
+      // Save preferences to localStorage
+      localStorage.setItem('user_preferences', JSON.stringify(preferences));
 
-      if (error) throw error;
+      // Also save display name separately for Profile page
+      if (preferences.display_name) {
+        localStorage.setItem('auth_display_name', preferences.display_name);
+      }
 
       toast({
         title: "Settings saved",

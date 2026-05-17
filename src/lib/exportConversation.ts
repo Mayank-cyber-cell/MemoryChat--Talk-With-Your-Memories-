@@ -1,15 +1,20 @@
-import { supabase } from "@/integrations/supabase/client";
-import { Tables } from "@/integrations/supabase/types";
+import { apiClient } from "@/lib/api-client";
 
-type ChatSession = Tables<"chat_sessions">;
-type ParsedMessage = Tables<"parsed_messages">;
+interface ChatSession {
+  id: string;
+  session_name: string;
+  chat_platform?: string;
+  total_messages?: number;
+  created_at: string;
+  updated_at?: string;
+  personality_traits?: Record<string, unknown>;
+  conversation_insights?: Record<string, unknown>;
+  tags?: string[];
+}
 
 export const exportAsJSON = async (session: ChatSession) => {
-  const { data: messages } = await supabase
-    .from('parsed_messages')
-    .select('*')
-    .eq('session_id', session.id)
-    .order('message_order', { ascending: true });
+  const messagesResult = await apiClient.getMessages(session.id);
+  const messages = messagesResult.data || [];
 
   const exportData = {
     session: {
@@ -23,12 +28,11 @@ export const exportAsJSON = async (session: ChatSession) => {
       conversationInsights: session.conversation_insights,
       tags: session.tags,
     },
-    messages: messages?.map(m => ({
+    messages: messages.map(m => ({
       sender: m.sender_name,
       text: m.message_text,
       timestamp: m.timestamp,
-      sentiment: m.sentiment,
-    })) || [],
+    })),
   };
 
   const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -36,11 +40,8 @@ export const exportAsJSON = async (session: ChatSession) => {
 };
 
 export const exportAsText = async (session: ChatSession) => {
-  const { data: messages } = await supabase
-    .from('parsed_messages')
-    .select('*')
-    .eq('session_id', session.id)
-    .order('message_order', { ascending: true });
+  const messagesResult = await apiClient.getMessages(session.id);
+  const messages = messagesResult.data || [];
 
   let textContent = `Conversation: ${session.session_name}\n`;
   textContent += `Platform: ${session.chat_platform || 'Unknown'}\n`;
@@ -48,7 +49,7 @@ export const exportAsText = async (session: ChatSession) => {
   textContent += `Exported: ${new Date().toLocaleString()}\n`;
   textContent += `${'='.repeat(50)}\n\n`;
 
-  messages?.forEach(m => {
+  messages.forEach(m => {
     const timestamp = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
     textContent += `[${timestamp}] ${m.sender_name}:\n${m.message_text}\n\n`;
   });

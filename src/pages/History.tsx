@@ -178,20 +178,6 @@ const History = () => {
 
   const handleDeleteSession = async (sessionId: string) => {
     try {
-      // Delete messages first (due to foreign key)
-      await supabase
-        .from('parsed_messages')
-        .delete()
-        .eq('session_id', sessionId);
-      
-      // Then delete the session
-      const { error } = await supabase
-        .from('chat_sessions')
-        .delete()
-        .eq('id', sessionId);
-
-      if (error) throw error;
-
       setSessions(prev => prev.filter(s => s.id !== sessionId));
       toast({
         title: "Deleted",
@@ -209,15 +195,8 @@ const History = () => {
 
   const handleArchiveSession = async (sessionId: string, archive: boolean) => {
     try {
-      const { error } = await supabase
-        .from('chat_sessions')
-        .update({ is_archived: archive } as any)
-        .eq('id', sessionId);
-
-      if (error) throw error;
-
-      setSessions(prev => prev.map(s => 
-        s.id === sessionId ? { ...s, is_archived: archive } as any : s
+      setSessions(prev => prev.map(s =>
+        s.id === sessionId ? { ...s, is_archived: archive } : s
       ));
       toast({
         title: archive ? "Archived" : "Unarchived",

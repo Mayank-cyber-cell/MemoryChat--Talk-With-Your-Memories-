@@ -2,7 +2,6 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tables } from "@/integrations/supabase/types";
 import { MessageSquare, Calendar, Sparkles, Trash2, Archive, ArchiveRestore, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { TagManager } from "@/components/TagManager";
@@ -28,7 +27,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type ChatSession = Tables<"chat_sessions">;
+interface ChatSession {
+  id: string;
+  session_name: string;
+  chat_platform?: string;
+  total_messages: number;
+  personality_traits?: Record<string, unknown>;
+  conversation_insights?: Record<string, unknown>;
+  analysis_complete?: boolean;
+  is_archived?: boolean;
+  tags?: string[];
+  created_at: string;
+  updated_at: string;
+}
 
 interface ChatPreviewCardProps {
   session: ChatSession;

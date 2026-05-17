@@ -3,7 +3,6 @@ import { X, Plus, Tag as TagIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface TagManagerProps {
@@ -18,66 +17,33 @@ export const TagManager = ({ sessionId, currentTags, onTagsUpdate }: TagManagerP
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
 
-  const handleAddTag = async () => {
+  const handleAddTag = () => {
     if (!newTag.trim() || tags.includes(newTag.trim())) {
       setNewTag("");
       return;
     }
 
-    const updatedTags = [...tags, newTag.trim()];
+    const tagToAdd = newTag.trim();
+    const updatedTags = [...tags, tagToAdd];
     setTags(updatedTags);
     setNewTag("");
 
-    try {
-      const { error } = await supabase
-        .from('chat_sessions')
-        .update({ tags: updatedTags })
-        .eq('id', sessionId);
-
-      if (error) throw error;
-
-      onTagsUpdate?.(updatedTags);
-      toast({
-        title: "Tag added",
-        description: `"${newTag.trim()}" has been added`,
-      });
-    } catch (error) {
-      console.error('Error adding tag:', error);
-      setTags(tags);
-      toast({
-        title: "Error",
-        description: "Failed to add tag",
-        variant: "destructive",
-      });
-    }
+    onTagsUpdate?.(updatedTags);
+    toast({
+      title: "Tag added",
+      description: `"${tagToAdd}" has been added`,
+    });
   };
 
-  const handleRemoveTag = async (tagToRemove: string) => {
+  const handleRemoveTag = (tagToRemove: string) => {
     const updatedTags = tags.filter(tag => tag !== tagToRemove);
     setTags(updatedTags);
 
-    try {
-      const { error } = await supabase
-        .from('chat_sessions')
-        .update({ tags: updatedTags })
-        .eq('id', sessionId);
-
-      if (error) throw error;
-
-      onTagsUpdate?.(updatedTags);
-      toast({
-        title: "Tag removed",
-        description: `"${tagToRemove}" has been removed`,
-      });
-    } catch (error) {
-      console.error('Error removing tag:', error);
-      setTags([...tags, tagToRemove]);
-      toast({
-        title: "Error",
-        description: "Failed to remove tag",
-        variant: "destructive",
-      });
-    }
+    onTagsUpdate?.(updatedTags);
+    toast({
+      title: "Tag removed",
+      description: `"${tagToRemove}" has been removed`,
+    });
   };
 
   return (

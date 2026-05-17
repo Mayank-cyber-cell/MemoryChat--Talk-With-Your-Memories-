@@ -2,9 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import Landing from "./pages/Landing";
+import Auth from "./pages/Auth";
 import Upload from "./pages/Upload";
 import Loading from "./pages/Loading";
 import Chat from "./pages/Chat";
@@ -26,8 +27,8 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/auth" element={<Navigate to="/" replace />} />
               <Route path="/" element={<Landing />} />
+              <Route path="/auth" element={<Auth />} />
               <Route path="/upload" element={<Upload />} />
               <Route path="/loading" element={<Loading />} />
               <Route path="/chat" element={<Chat />} />

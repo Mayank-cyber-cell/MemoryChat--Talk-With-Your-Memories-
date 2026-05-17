@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   ArrowLeft,
@@ -31,32 +31,27 @@ const Profile = () => {
 
   const loadUserData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const token = apiClient.getAuthToken();
+      if (!token) return;
 
-      setUserEmail(user.email || "");
+      // Load email from localStorage (set during login)
+      const storedEmail = localStorage.getItem('auth_email') || '';
+      setUserEmail(storedEmail);
 
-      const { data: preferences } = await supabase
-        .from('user_preferences')
-        .select('display_name')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Load display name from localStorage
+      const storedName = localStorage.getItem('auth_display_name') || '';
+      setDisplayName(storedName);
 
-      setDisplayName(preferences?.display_name || "");
-
-      const { data: sessions } = await supabase
-        .from('chat_sessions')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (sessions) {
+      // Load sessions via apiClient
+      const sessionsResult = await apiClient.getSessions();
+      if (sessionsResult.data) {
+        const sessions = sessionsResult.data;
         const totalMessages = sessions.reduce((sum, s) => sum + (s.total_messages || 0), 0);
-        const favoriteCount = sessions.filter((s: any) => s.is_favorite).length;
 
         setStats({
           totalConversations: sessions.length,
           totalMessages,
-          favoriteCount,
+          favoriteCount: 0,
         });
       }
     } catch (error) {

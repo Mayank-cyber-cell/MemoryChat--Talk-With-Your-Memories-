@@ -118,27 +118,19 @@ const Chat = () => {
 
     try {
       if (sessionId) {
-        // Get AI response based on personality
-        const { data, error } = await supabase.functions.invoke('chat-response', {
-          body: {
-            sessionId,
-            userMessage: text,
-            conversationHistory: conversationHistory
-          }
-        });
+        // Simulated AI response for now
+        setTimeout(() => {
+          const aiMessage: Message = {
+            id: messages.length + 2,
+            text: "I'm thinking about what you said...",
+            sender: "ai",
+            timestamp: new Date(),
+            reactions: [],
+          };
 
-        if (error) throw error;
-
-        const aiMessage: Message = {
-          id: messages.length + 2,
-          text: data.response,
-          sender: "ai",
-          timestamp: new Date(),
-          reactions: [],
-        };
-
-        setMessages((prev) => [...prev, aiMessage]);
-        setConversationHistory((prev) => [...prev, { role: "assistant", content: data.response }]);
+          setMessages((prev) => [...prev, aiMessage]);
+          setConversationHistory((prev) => [...prev, { role: "assistant", content: aiMessage.text }]);
+        }, 1500);
       } else {
         // Demo mode - simple response
         setTimeout(() => {

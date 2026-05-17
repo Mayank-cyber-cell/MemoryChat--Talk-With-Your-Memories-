@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { MessageSquare, Sparkles, Calendar } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -23,14 +23,12 @@ const Memory = () => {
     if (!sessionId) return;
 
     try {
-      const { data, error } = await supabase
-        .from('chat_sessions')
-        .select('total_messages')
-        .eq('id', sessionId)
-        .single();
-
-      if (error) throw error;
-      setMessageCount(data.total_messages);
+      const sessionsResult = await apiClient.getSessions();
+      if (sessionsResult.error) throw new Error(sessionsResult.error);
+      const session = sessionsResult.data?.find(s => s.id === sessionId);
+      if (session) {
+        setMessageCount(session.total_messages);
+      }
     } catch (error) {
       console.error('Error loading stats:', error);
     }
