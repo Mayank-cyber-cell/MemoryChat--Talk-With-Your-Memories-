@@ -12,15 +12,10 @@ interface ParsedMessage {
   text: string;
 }
 
-// Parse WhatsApp chat export format
-// Handles both: [DD/MM/YY, HH:MM:SS] Name: Message  AND  DD/MM/YY, HH:MM - Name: Message
 function parseWhatsAppChat(content: string): ParsedMessage[] {
   const messages: ParsedMessage[] = [];
 
-  // Split into candidate message blocks by timestamp pattern
-  // WhatsApp with brackets: [23/04/24, 10:30:15]
   const bracketSplit = /(?=\[\d{1,2}\/\d{1,2}\/\d{2,4},\s*\d{1,2}:\d{2})/;
-  // WhatsApp without brackets (dash format): 23/04/24, 10:30 -
   const dashSplit = /(?=\d{1,2}\/\d{1,2}\/\d{2,4},\s*\d{1,2}:\d{2}\s+-)/;
 
   const hasBrackets = /\[\d{1,2}\/\d{1,2}\/\d{2,4},/.test(content);
@@ -30,12 +25,10 @@ function parseWhatsAppChat(content: string): ParsedMessage[] {
     let date = '', time = '', sender = '', text = '';
 
     if (hasBrackets) {
-      // [DD/MM/YY, HH:MM:SS] Sender: message text
       const m = part.match(/^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?)\]\s*([^:]+?):\s*([\s\S]*)/i);
       if (!m) continue;
       [, date, time, sender, text] = m;
     } else {
-      // DD/MM/YY, HH:MM - Sender: message text
       const m = part.match(/^(\d{1,2}\/\d{1,2}\/\d{2,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?)\s+-\s*([^:]+?):\s*([\s\S]*)/i);
       if (!m) continue;
       [, date, time, sender, text] = m;
@@ -44,7 +37,6 @@ function parseWhatsAppChat(content: string): ParsedMessage[] {
     const cleanText = text.trim();
     const cleanSender = sender.trim();
 
-    // Skip system messages
     if (!cleanText || cleanSender === 'Messages and calls are end-to-end encrypted') continue;
     if (cleanText === '<Media omitted>' || cleanText === 'image omitted' || cleanText === 'video omitted') continue;
 
@@ -58,7 +50,6 @@ function parseWhatsAppChat(content: string): ParsedMessage[] {
   return messages;
 }
 
-// Parse Telegram chat export format: [DD.MM.YYYY HH:MM:SS] Sender: message
 function parseTelegramChat(content: string): ParsedMessage[] {
   const messages: ParsedMessage[] = [];
   const lines = content.split('\n');
@@ -80,12 +71,11 @@ function parseTelegramChat(content: string): ParsedMessage[] {
       currentMsg.text += '\n' + line.trim();
     }
   }
-  if (currentMsg) messages.push(currentMsg);
 
+  if (currentMsg) messages.push(currentMsg);
   return messages;
 }
 
-// Parse generic/manual chat - tries "Name: message" pattern, falls back to alternating
 function parseManualChat(content: string): ParsedMessage[] {
   const messages: ParsedMessage[] = [];
   const lines = content.split('\n').filter(l => l.trim());
@@ -154,9 +144,10 @@ function parseTelegramDate(datetime: string): Date | null {
 }
 
 async function analyzeConversation(messages: ParsedMessage[], lovableApiKey: string) {
-  const sample = messages.slice(0, 80).map(m => `${m.sender}: ${m.text}`).join('\n');
+  try {
+    const sample = messages.slice(0, 80).map(m => `${m.sender}: ${m.text}`).join('\n');
 
-  const prompt = `Analyze this conversation and provide personality/communication insights.
+    const prompt = `Analyze this conversation and provide personality/communication insights.
 
 Conversation:
 ${sample}
@@ -174,35 +165,34 @@ Reply ONLY with a valid JSON object, no markdown:
   "communication_style": "brief description"
 }`;
 
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${lovableApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages: [
-        { role: 'system', content: 'You are a conversation analyst. Respond ONLY with valid JSON, no markdown.' },
-        { role: 'user', content: prompt }
-      ],
-    }),
-  });
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${lovableApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: 'You are a conversation analyst. Respond ONLY with valid JSON, no markdown.' },
+          { role: 'user', content: prompt }
+        ],
+      }),
+    });
 
-  if (!response.ok) {
-    console.error('AI analysis failed:', response.status);
-    return null;
-  }
+    if (!response.ok) {
+      console.error('AI analysis failed:', response.status);
+      return null;
+    }
 
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) return null;
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) return null;
 
-  try {
     const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
     return JSON.parse(cleaned);
-  } catch (_e) {
-    console.error('Failed to parse AI JSON response');
+  } catch (e) {
+    console.error('Failed to analyze conversation:', e);
     return null;
   }
 }
@@ -216,21 +206,31 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Unauthorized: missing auth header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase environment variables');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
+      console.error('Auth error:', userError);
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Unauthorized: invalid user' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -270,15 +270,17 @@ Deno.serve(async (req) => {
     let analysis = null;
 
     if (lovableApiKey) {
+      console.log('Analyzing conversation with AI...');
       analysis = await analyzeConversation(messages, lovableApiKey);
       console.log('Analysis:', analysis ? 'success' : 'failed');
     }
 
-    // Build a clean session name
     const senders = [...new Set(messages.map(m => m.sender))];
     const sessionName = filename
       ? filename.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ')
       : senders.slice(0, 2).join(' & ') || `${platform} Chat`;
+
+    console.log('Creating session:', sessionName);
 
     const { data: session, error: sessionError } = await supabase
       .from('chat_sessions')
@@ -297,10 +299,11 @@ Deno.serve(async (req) => {
 
     if (sessionError) {
       console.error('Session creation error:', sessionError);
-      throw sessionError;
+      throw new Error(`Failed to create session: ${sessionError.message}`);
     }
 
-    // Insert messages in batches with correct global ordering
+    console.log('Session created:', session.id);
+
     const batchSize = 100;
     for (let batchStart = 0; batchStart < messages.length; batchStart += batchSize) {
       const batch = messages.slice(batchStart, batchStart + batchSize).map((msg, idxInBatch) => ({
@@ -318,9 +321,11 @@ Deno.serve(async (req) => {
 
       if (insertError) {
         console.error('Message insert error:', insertError);
-        throw insertError;
+        throw new Error(`Failed to insert messages: ${insertError.message}`);
       }
     }
+
+    console.log('All messages inserted successfully');
 
     return new Response(
       JSON.stringify({
@@ -334,7 +339,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Error in parse-chat:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
