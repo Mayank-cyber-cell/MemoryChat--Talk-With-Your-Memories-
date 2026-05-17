@@ -1,9 +1,9 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
 interface ParsedMessage {
@@ -13,40 +13,113 @@ interface ParsedMessage {
 }
 
 // Parse WhatsApp chat export format
+// Handles both: [DD/MM/YY, HH:MM:SS] Name: Message  AND  DD/MM/YY, HH:MM - Name: Message
 function parseWhatsAppChat(content: string): ParsedMessage[] {
   const messages: ParsedMessage[] = [];
-  // WhatsApp format: [DD/MM/YY, HH:MM:SS] Name: Message
-  const whatsappRegex = /\[(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?)\]\s*([^:]+):\s*(.+)/gi;
-  
-  let match;
-  while ((match = whatsappRegex.exec(content)) !== null) {
-    const [, date, time, sender, text] = match;
+
+  // Split into candidate message blocks by timestamp pattern
+  // WhatsApp with brackets: [23/04/24, 10:30:15]
+  const bracketSplit = /(?=\[\d{1,2}\/\d{1,2}\/\d{2,4},\s*\d{1,2}:\d{2})/;
+  // WhatsApp without brackets (dash format): 23/04/24, 10:30 -
+  const dashSplit = /(?=\d{1,2}\/\d{1,2}\/\d{2,4},\s*\d{1,2}:\d{2}\s+-)/;
+
+  const hasBrackets = /\[\d{1,2}\/\d{1,2}\/\d{2,4},/.test(content);
+  const parts = content.split(hasBrackets ? bracketSplit : dashSplit).filter(p => p.trim());
+
+  for (const part of parts) {
+    let date = '', time = '', sender = '', text = '';
+
+    if (hasBrackets) {
+      // [DD/MM/YY, HH:MM:SS] Sender: message text
+      const m = part.match(/^\[(\d{1,2}\/\d{1,2}\/\d{2,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?)\]\s*([^:]+?):\s*([\s\S]*)/i);
+      if (!m) continue;
+      [, date, time, sender, text] = m;
+    } else {
+      // DD/MM/YY, HH:MM - Sender: message text
+      const m = part.match(/^(\d{1,2}\/\d{1,2}\/\d{2,4}),\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AP]M)?)\s+-\s*([^:]+?):\s*([\s\S]*)/i);
+      if (!m) continue;
+      [, date, time, sender, text] = m;
+    }
+
+    const cleanText = text.trim();
+    const cleanSender = sender.trim();
+
+    // Skip system messages
+    if (!cleanText || cleanSender === 'Messages and calls are end-to-end encrypted') continue;
+    if (cleanText === '<Media omitted>' || cleanText === 'image omitted' || cleanText === 'video omitted') continue;
+
     messages.push({
       timestamp: parseWhatsAppDate(date, time),
-      sender: sender.trim(),
-      text: text.trim()
+      sender: cleanSender,
+      text: cleanText
     });
   }
-  
+
   return messages;
 }
 
-// Parse Telegram chat export format
+// Parse Telegram chat export format: [DD.MM.YYYY HH:MM:SS] Sender: message
 function parseTelegramChat(content: string): ParsedMessage[] {
   const messages: ParsedMessage[] = [];
-  // Telegram format: [DD.MM.YYYY HH:MM:SS] Name: Message
-  const telegramRegex = /\[(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2})\]\s*([^:]+):\s*(.+)/gi;
-  
-  let match;
-  while ((match = telegramRegex.exec(content)) !== null) {
-    const [, datetime, sender, text] = match;
-    messages.push({
-      timestamp: parseTelegramDate(datetime),
-      sender: sender.trim(),
-      text: text.trim()
-    });
+  const lines = content.split('\n');
+  const headerRegex = /^\[(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2})\]\s*([^:]+?):\s*(.*)/;
+
+  let currentMsg: ParsedMessage | null = null;
+
+  for (const line of lines) {
+    const match = line.match(headerRegex);
+    if (match) {
+      if (currentMsg) messages.push(currentMsg);
+      const [, datetime, sender, text] = match;
+      currentMsg = {
+        timestamp: parseTelegramDate(datetime),
+        sender: sender.trim(),
+        text: text.trim()
+      };
+    } else if (currentMsg && line.trim()) {
+      currentMsg.text += '\n' + line.trim();
+    }
   }
-  
+  if (currentMsg) messages.push(currentMsg);
+
+  return messages;
+}
+
+// Parse generic/manual chat - tries "Name: message" pattern, falls back to alternating
+function parseManualChat(content: string): ParsedMessage[] {
+  const messages: ParsedMessage[] = [];
+  const lines = content.split('\n').filter(l => l.trim());
+  const nameColonRegex = /^([A-Za-z][A-Za-z0-9 _-]{0,30}):\s+(.+)/;
+
+  const hasNamePattern = lines.filter(l => nameColonRegex.test(l)).length >= Math.min(3, lines.length * 0.3);
+
+  if (hasNamePattern) {
+    let currentSender = '';
+    let currentParts: string[] = [];
+
+    for (const line of lines) {
+      const match = line.match(nameColonRegex);
+      if (match) {
+        if (currentSender && currentParts.length) {
+          messages.push({ timestamp: null, sender: currentSender, text: currentParts.join(' ').trim() });
+        }
+        currentSender = match[1].trim();
+        currentParts = [match[2]];
+      } else if (currentSender) {
+        currentParts.push(line);
+      }
+    }
+    if (currentSender && currentParts.length) {
+      messages.push({ timestamp: null, sender: currentSender, text: currentParts.join(' ').trim() });
+    }
+  } else {
+    let sender = 'You';
+    for (const line of lines) {
+      messages.push({ timestamp: null, sender, text: line.trim() });
+      sender = sender === 'You' ? 'Them' : 'You';
+    }
+  }
+
   return messages;
 }
 
@@ -54,24 +127,17 @@ function parseWhatsAppDate(date: string, time: string): Date | null {
   try {
     const [day, month, year] = date.split('/').map(Number);
     const fullYear = year < 100 ? 2000 + year : year;
-    
-    // Handle both 12-hour and 24-hour formats
     const timeRegex = /(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s?([AP]M))?/i;
     const timeMatch = time.match(timeRegex);
-    
     if (!timeMatch) return null;
-    
-    let [, hours, minutes, seconds = '0', period] = timeMatch;
+    const [, hours, minutes, seconds = '0', period] = timeMatch;
     let hour = parseInt(hours);
-    
     if (period) {
       if (period.toUpperCase() === 'PM' && hour !== 12) hour += 12;
       if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
     }
-    
     return new Date(fullYear, month - 1, day, hour, parseInt(minutes), parseInt(seconds));
-  } catch (e) {
-    console.error('Error parsing WhatsApp date:', e);
+  } catch (_e) {
     return null;
   }
 }
@@ -82,37 +148,30 @@ function parseTelegramDate(datetime: string): Date | null {
     const [day, month, year] = date.split('.').map(Number);
     const [hours, minutes, seconds] = time.split(':').map(Number);
     return new Date(year, month - 1, day, hours, minutes, seconds);
-  } catch (e) {
-    console.error('Error parsing Telegram date:', e);
+  } catch (_e) {
     return null;
   }
 }
 
-// Analyze conversation patterns with AI
 async function analyzeConversation(messages: ParsedMessage[], lovableApiKey: string) {
-  const senders = [...new Set(messages.map(m => m.sender))];
-  const messageText = messages.slice(0, 100).map(m => `${m.sender}: ${m.text}`).join('\n');
-  
-  const prompt = `Analyze this conversation and provide insights about the personality and communication style of the participants. Focus on:
-1. Personality traits (warmth, humor, directness, etc.)
-2. Common phrases and expressions
-3. Emotional tone and sentiment
-4. Response patterns
+  const sample = messages.slice(0, 80).map(m => `${m.sender}: ${m.text}`).join('\n');
 
-Conversation excerpt:
-${messageText}
+  const prompt = `Analyze this conversation and provide personality/communication insights.
 
-Provide a JSON response with:
+Conversation:
+${sample}
+
+Reply ONLY with a valid JSON object, no markdown:
 {
   "personality_traits": {
-    "warmth": "score 1-10",
-    "humor": "score 1-10",
-    "directness": "score 1-10",
-    "emotional_expression": "description"
+    "warmth": "1-10",
+    "humor": "1-10",
+    "directness": "1-10",
+    "emotional_expression": "brief description"
   },
-  "common_phrases": ["phrase1", "phrase2"],
-  "overall_tone": "description",
-  "communication_style": "description"
+  "common_phrases": ["phrase1", "phrase2", "phrase3"],
+  "overall_tone": "one word",
+  "communication_style": "brief description"
 }`;
 
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -124,33 +183,33 @@ Provide a JSON response with:
     body: JSON.stringify({
       model: 'google/gemini-2.5-flash',
       messages: [
-        { role: 'system', content: 'You are an expert conversation analyst. Respond only with valid JSON.' },
+        { role: 'system', content: 'You are a conversation analyst. Respond ONLY with valid JSON, no markdown.' },
         { role: 'user', content: prompt }
       ],
     }),
   });
 
   if (!response.ok) {
-    console.error('AI analysis failed:', await response.text());
+    console.error('AI analysis failed:', response.status);
     return null;
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  
+  const content = data.choices?.[0]?.message?.content?.trim();
+  if (!content) return null;
+
   try {
-    // Extract JSON from markdown code blocks if present
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [null, content];
-    return JSON.parse(jsonMatch[1]);
-  } catch (e) {
-    console.error('Failed to parse AI response:', e);
+    const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    return JSON.parse(cleaned);
+  } catch (_e) {
+    console.error('Failed to parse AI JSON response');
     return null;
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -185,54 +244,47 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Parsing ${platform} chat with ${chatText.length} characters`);
+    console.log(`Parsing ${platform} chat, length: ${chatText.length}`);
 
-    // Parse messages based on platform
     let messages: ParsedMessage[];
     if (platform === 'whatsapp') {
       messages = parseWhatsAppChat(chatText);
     } else if (platform === 'telegram') {
       messages = parseTelegramChat(chatText);
-    } else if (platform === 'manual') {
-      // For manual input, split by lines and assume alternating speakers
-      const lines = chatText.split('\n').filter((l: string) => l.trim());
-      messages = lines.map((line: string, idx: number) => ({
-        timestamp: new Date(),
-        sender: idx % 2 === 0 ? 'You' : 'Them',
-        text: line.trim()
-      }));
     } else {
-      return new Response(
-        JSON.stringify({ error: 'Unsupported platform' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (messages.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'No messages found in the chat. Please check the format.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      messages = parseManualChat(chatText);
     }
 
     console.log(`Parsed ${messages.length} messages`);
 
-    // Analyze conversation with AI
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    let analysis = null;
-    
-    if (lovableApiKey) {
-      console.log('Analyzing conversation with AI...');
-      analysis = await analyzeConversation(messages, lovableApiKey);
-      console.log('Analysis complete:', analysis ? 'success' : 'failed');
+    if (messages.length === 0) {
+      return new Response(
+        JSON.stringify({
+          error: 'No messages found. Supported formats: WhatsApp export (.txt), Telegram export (.txt), or "Name: message" format.'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Create chat session
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    let analysis = null;
+
+    if (lovableApiKey) {
+      analysis = await analyzeConversation(messages, lovableApiKey);
+      console.log('Analysis:', analysis ? 'success' : 'failed');
+    }
+
+    // Build a clean session name
+    const senders = [...new Set(messages.map(m => m.sender))];
+    const sessionName = filename
+      ? filename.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ')
+      : senders.slice(0, 2).join(' & ') || `${platform} Chat`;
+
     const { data: session, error: sessionError } = await supabase
       .from('chat_sessions')
       .insert({
         user_id: user.id,
-        session_name: filename || `${platform} Chat`,
+        session_name: sessionName,
         original_filename: filename,
         chat_platform: platform,
         total_messages: messages.length,
@@ -248,18 +300,16 @@ serve(async (req) => {
       throw sessionError;
     }
 
-    console.log('Created session:', session.id);
-
-    // Insert messages in batches
+    // Insert messages in batches with correct global ordering
     const batchSize = 100;
-    for (let i = 0; i < messages.length; i += batchSize) {
-      const batch = messages.slice(i, i + batchSize).map((msg, idx) => ({
+    for (let batchStart = 0; batchStart < messages.length; batchStart += batchSize) {
+      const batch = messages.slice(batchStart, batchStart + batchSize).map((msg, idxInBatch) => ({
         session_id: session.id,
         user_id: user.id,
         sender_name: msg.sender,
         message_text: msg.text,
-        timestamp: msg.timestamp?.toISOString() || new Date().toISOString(),
-        message_order: i + idx,
+        timestamp: msg.timestamp?.toISOString() ?? null,
+        message_order: batchStart + idxInBatch,
       }));
 
       const { error: insertError } = await supabase
@@ -272,20 +322,18 @@ serve(async (req) => {
       }
     }
 
-    console.log('All messages inserted successfully');
-
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         sessionId: session.id,
         messageCount: messages.length,
-        analysis: analysis
+        analysis
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error in parse-chat function:', error);
+    console.error('Error in parse-chat:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ error: errorMessage }),

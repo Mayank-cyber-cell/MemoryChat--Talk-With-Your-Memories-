@@ -100,7 +100,7 @@ export const ChatPreviewCard = ({ session, onDelete, onArchive }: ChatPreviewCar
         {/* Header */}
         <div className="mb-4">
           <div className="flex items-start justify-between gap-2 mb-3">
-            <h3 className="text-xl font-heading font-bold text-foreground group-hover:gradient-primary group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300 line-clamp-2 flex-1">
+            <h3 className="text-xl font-heading font-bold text-foreground transition-colors duration-300 line-clamp-2 flex-1 group-hover:text-primary">
               {session.session_name}
             </h3>
             <div className="flex items-center gap-1 flex-shrink-0">

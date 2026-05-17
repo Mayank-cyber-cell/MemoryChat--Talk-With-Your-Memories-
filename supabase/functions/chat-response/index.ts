@@ -1,14 +1,14 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
@@ -43,15 +43,13 @@ serve(async (req) => {
       );
     }
 
-    // Get session analysis
     const { data: session, error: sessionError } = await supabase
       .from('chat_sessions')
-      .select('personality_traits, conversation_insights')
+      .select('personality_traits, conversation_insights, session_name')
       .eq('id', sessionId)
-      .single();
+      .maybeSingle();
 
-    if (sessionError) {
-      console.error('Session fetch error:', sessionError);
+    if (sessionError || !session) {
       return new Response(
         JSON.stringify({ error: 'Session not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -61,38 +59,38 @@ serve(async (req) => {
     const personalityTraits = session.personality_traits || {};
     const insights = session.conversation_insights || {};
 
-    // Build AI prompt based on personality analysis
-    const systemPrompt = `You are roleplaying as someone in a past conversation. Here's what we know about this person:
+    const systemPrompt = `You are roleplaying as a real person from someone's past conversations. Embody their personality authentically.
 
-Personality Traits:
-- Warmth: ${personalityTraits.warmth || 'moderate'}
-- Humor: ${personalityTraits.humor || 'moderate'}
-- Directness: ${personalityTraits.directness || 'moderate'}
-- Emotional Expression: ${personalityTraits.emotional_expression || 'balanced'}
+What we know about this person:
+- Warmth level: ${personalityTraits.warmth || '5'}/10
+- Humor level: ${personalityTraits.humor || '5'}/10
+- Directness level: ${personalityTraits.directness || '5'}/10
+- Emotional expression: ${personalityTraits.emotional_expression || 'balanced'}
+- Communication style: ${insights.communication_style || 'conversational'}
+- Overall tone: ${insights.overall_tone || 'friendly'}
+${Array.isArray(insights.common_phrases) && insights.common_phrases.length > 0
+  ? `- Phrases they commonly use: ${insights.common_phrases.slice(0, 5).join(', ')}`
+  : ''}
 
-Communication Style: ${insights.communication_style || 'natural and authentic'}
-Overall Tone: ${insights.overall_tone || 'friendly'}
-
-${insights.common_phrases ? `Common phrases they use: ${insights.common_phrases.join(', ')}` : ''}
-
-IMPORTANT: Respond naturally as this person would, keeping messages relatively short (1-3 sentences). Use their communication style, common phrases, and emotional tone. Be authentic and conversational. Show warmth and personality.`;
+Rules:
+- Keep replies short and natural (1-3 sentences max)
+- Use their typical vocabulary and phrasing
+- Match their emotional tone
+- Be authentic — avoid being overly poetic or dramatic
+- Do NOT mention you are an AI`;
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!lovableApiKey) {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Prepare messages for AI
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...conversationHistory.map((msg: { role: string; content: string }) => ({
-        role: msg.role,
-        content: msg.content
-      })),
+      ...(Array.isArray(conversationHistory) ? conversationHistory : []).map(
+        (msg: { role: string; content: string }) => ({ role: msg.role, content: msg.content })
+      ),
       { role: 'user', content: userMessage }
     ];
-
-    console.log('Generating AI response with personality:', personalityTraits);
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -102,7 +100,7 @@ IMPORTANT: Respond naturally as this person would, keeping messages relatively s
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
-        messages: messages,
+        messages,
       }),
     });
 
@@ -119,15 +117,13 @@ IMPORTANT: Respond naturally as this person would, keeping messages relatively s
       throw new Error('No response from AI');
     }
 
-    console.log('AI response generated successfully');
-
     return new Response(
       JSON.stringify({ response: aiResponse }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error in chat-response function:', error);
+    console.error('Error in chat-response:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ error: errorMessage }),

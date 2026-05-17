@@ -77,22 +77,24 @@ const Chat = () => {
 
       const { data: messagesData, error: messagesError } = await supabase
         .from('parsed_messages')
-        .select('*')
+        .select('sender_name')
         .eq('session_id', sessionId)
         .order('message_order')
-        .limit(5);
+        .limit(20);
 
       if (messagesError) throw messagesError;
 
-      // Extract AI persona name from first few messages
-      const firstSender = messagesData.find(m => m.sender_name !== 'You')?.sender_name || 'Them';
+      // Extract AI persona name — first sender that isn't "You"
+      const firstSender = messagesData?.find(m => m.sender_name !== 'You')?.sender_name || 'Them';
       setAiPersona(firstSender);
 
-      // Set initial AI greeting based on analysis
+      // Set initial AI greeting based on analysis tone
       const insights = sessionData.conversation_insights as any;
-      const greeting = insights?.overall_tone === 'warm' 
-        ? "Hey... it's been a while. I've missed this."
-        : "Hi. It's strange talking again.";
+      const tone = (insights?.overall_tone || '').toLowerCase();
+      const isWarm = ['warm', 'friendly', 'happy', 'loving', 'cheerful', 'positive', 'affectionate'].some(t => tone.includes(t));
+      const greeting = isWarm
+        ? `Hey... it's been a while. I've missed talking to you.`
+        : `Hi. It feels strange but also kind of nice to talk again.`;
 
       setMessages([
         {

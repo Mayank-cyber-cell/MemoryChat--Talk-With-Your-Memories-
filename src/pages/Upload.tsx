@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload as UploadIcon, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Upload as UploadIcon, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
@@ -23,6 +24,7 @@ const Upload = () => {
   const [text, setText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [detectedPlatform, setDetectedPlatform] = useState<string | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -84,12 +86,14 @@ const Upload = () => {
   };
 
   const detectPlatform = (chatText: string): "whatsapp" | "telegram" | "manual" => {
-    // WhatsApp format: [DD/MM/YY, HH:MM:SS] Name: Message
-    const whatsappPattern = /\[\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}/;
-    // Telegram format: [DD.MM.YYYY HH:MM:SS] Name: Message
+    // WhatsApp with brackets: [DD/MM/YY, HH:MM:SS]
+    const whatsappBracket = /\[\d{1,2}\/\d{1,2}\/\d{2,4},\s*\d{1,2}:\d{2}/;
+    // WhatsApp dash format: DD/MM/YY, HH:MM -
+    const whatsappDash = /\d{1,2}\/\d{1,2}\/\d{2,4},\s*\d{1,2}:\d{2}\s*-/;
+    // Telegram: [DD.MM.YYYY HH:MM:SS]
     const telegramPattern = /\[\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}\]/;
-    
-    if (whatsappPattern.test(chatText)) return "whatsapp";
+
+    if (whatsappBracket.test(chatText) || whatsappDash.test(chatText)) return "whatsapp";
     if (telegramPattern.test(chatText)) return "telegram";
     return "manual";
   };
@@ -200,14 +204,34 @@ const Upload = () => {
             </label>
             <Textarea
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Paste your conversation here..."
-              className="min-h-[150px] bg-background/50 border-border rounded-xl resize-none"
+              onChange={(e) => {
+                setText(e.target.value);
+                if (e.target.value.trim().length > 20) {
+                  setDetectedPlatform(detectPlatform(e.target.value));
+                } else {
+                  setDetectedPlatform(null);
+                }
+              }}
+              placeholder={`Paste your conversation here...\n\nSupported formats:\n• WhatsApp: [DD/MM/YY, HH:MM] Name: message\n• Telegram: [DD.MM.YYYY HH:MM:SS] Name: message\n• Any "Name: message" format`}
+              className="min-h-[160px] bg-background/50 border-border rounded-xl resize-none text-foreground placeholder:text-muted-foreground/60"
               maxLength={500000}
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              {text.length.toLocaleString()} / 500,000 characters
-            </p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-xs text-muted-foreground">
+                {text.length.toLocaleString()} / 500,000 characters
+              </p>
+              {detectedPlatform && (
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                  <span className="text-xs text-muted-foreground">
+                    Detected:{" "}
+                    <Badge variant="secondary" className="text-xs py-0 px-2 capitalize">
+                      {detectedPlatform}
+                    </Badge>
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Analyze Button */}
