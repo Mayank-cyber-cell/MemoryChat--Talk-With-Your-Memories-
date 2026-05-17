@@ -6,7 +6,7 @@ import ChatBubble from "@/components/chat/ChatBubble";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import ChatInput from "@/components/chat/ChatInput";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -67,34 +67,14 @@ const Chat = () => {
     if (!sessionId) return;
 
     try {
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('chat_sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .single();
+      const messagesResult = await apiClient.getMessages(sessionId);
+      if (messagesResult.error) throw new Error(messagesResult.error);
+      const messagesData = messagesResult.data || [];
 
-      if (sessionError) throw sessionError;
-
-      const { data: messagesData, error: messagesError } = await supabase
-        .from('parsed_messages')
-        .select('sender_name')
-        .eq('session_id', sessionId)
-        .order('message_order')
-        .limit(20);
-
-      if (messagesError) throw messagesError;
-
-      // Extract AI persona name — first sender that isn't "You"
       const firstSender = messagesData?.find(m => m.sender_name !== 'You')?.sender_name || 'Them';
       setAiPersona(firstSender);
 
-      // Set initial AI greeting based on analysis tone
-      const insights = sessionData.conversation_insights as any;
-      const tone = (insights?.overall_tone || '').toLowerCase();
-      const isWarm = ['warm', 'friendly', 'happy', 'loving', 'cheerful', 'positive', 'affectionate'].some(t => tone.includes(t));
-      const greeting = isWarm
-        ? `Hey... it's been a while. I've missed talking to you.`
-        : `Hi. It feels strange but also kind of nice to talk again.`;
+      const greeting = `Hey! I'm ${firstSender}. Let's chat about our conversation.`;
 
       setMessages([
         {

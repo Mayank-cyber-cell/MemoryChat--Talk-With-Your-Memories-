@@ -4,8 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
-import { Tables } from "@/integrations/supabase/types";
+import { apiClient } from "@/lib/api-client";
 import { ChatPreviewCard } from "@/components/ChatPreviewCard";
 import { ArrowLeft, Search, Filter, X, Calendar, MessageSquare, Sparkles, Archive, ArrowUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -19,7 +18,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type ChatSession = Tables<"chat_sessions">;
+interface ChatSession {
+  id: string;
+  session_name: string;
+  original_filename?: string;
+  chat_platform?: string;
+  total_messages: number;
+  personality_traits?: Record<string, unknown>;
+  conversation_insights?: Record<string, unknown>;
+  analysis_complete?: boolean;
+  is_archived?: boolean;
+  created_at: string;
+  updated_at?: string;
+  tags?: string[];
+}
 
 const History = () => {
   const navigate = useNavigate();
@@ -40,13 +52,9 @@ const History = () => {
 
   const loadChatSessions = async () => {
     try {
-      const { data, error } = await supabase
-        .from('chat_sessions')
-        .select('*')
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-      setSessions(data || []);
+      const result = await apiClient.getSessions();
+      if (result.error) throw new Error(result.error);
+      setSessions(result.data || []);
     } catch (error) {
       console.error('Error loading chat sessions:', error);
       toast({

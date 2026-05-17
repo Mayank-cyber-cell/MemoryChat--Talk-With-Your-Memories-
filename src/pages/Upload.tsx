@@ -4,9 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Upload as UploadIcon, Loader2, CheckCircle2 } from "lucide-react";
+import { Upload as UploadIcon, Loader as Loader2, CircleCheck as CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { z } from "zod";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -100,7 +100,6 @@ const Upload = () => {
 
   const handleAnalyze = async () => {
     try {
-      // Validate input
       const validation = chatInputSchema.safeParse({ text });
       if (!validation.success) {
         toast({
@@ -114,36 +113,31 @@ const Upload = () => {
       setIsLoading(true);
 
       const platform = detectPlatform(text);
-      
-      const { data, error } = await supabase.functions.invoke('parse-chat', {
-        body: {
-          chatText: text,
-          platform: platform,
-          filename: file?.name || `${platform}-chat-${Date.now()}.txt`
-        }
-      });
+      const result = await apiClient.uploadChat(
+        text,
+        platform as 'whatsapp' | 'telegram' | 'manual',
+        file?.name || `${platform}-chat-${Date.now()}.txt`
+      );
 
-      if (error) {
-        console.error('Parse error:', error);
-        throw new Error(error.message || 'Failed to parse chat');
+      if (result.error) {
+        throw new Error(result.error);
       }
 
-      if (!data?.success) {
-        throw new Error(data?.error || 'Failed to parse chat');
+      if (!result.data?.sessionId) {
+        throw new Error('No session ID returned');
       }
 
       toast({
-        title: "Chat analyzed!",
-        description: `Found ${data.messageCount} messages`,
+        title: "Chat uploaded!",
+        description: `Found ${result.data.messageCount} messages`,
       });
 
-      // Navigate to loading page with session ID
-      navigate(`/loading?sessionId=${data.sessionId}`);
+      navigate(`/loading?sessionId=${result.data.sessionId}`);
     } catch (error) {
-      console.error('Error analyzing chat:', error);
+      console.error('Error uploading chat:', error);
       toast({
-        title: "Analysis failed",
-        description: error instanceof Error ? error.message : "Could not analyze the chat. Please check the format.",
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Could not upload the chat. Please check the format.",
         variant: "destructive",
       });
     } finally {
