@@ -201,12 +201,9 @@ export const ChatPreviewCard = ({ session, onDelete, onArchive }: ChatPreviewCar
           </div>
 
           {session.chat_platform && (
-            <Badge 
-              variant="secondary" 
-              className="rounded-full px-4 py-1.5 text-xs font-bold gradient-primary text-primary-foreground border-0 shadow-lg"
-            >
+            <div className="rounded-full px-4 py-1.5 text-xs font-bold gradient-primary text-white border-0 shadow-lg">
               {session.chat_platform}
-            </Badge>
+            </div>
           )}
         </div>
 
